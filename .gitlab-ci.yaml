@@ -1,0 +1,8 @@
+stages:
+  - test
+
+hello-job:
+  image: ubuntu:latest
+  stage: test
+  script:
+    - echo "Hello, GitLab CI/CD!"
