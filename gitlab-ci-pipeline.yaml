@@ -1,0 +1,74 @@
+stages:
+  - build
+  - test
+  - package
+  - dockerize
+  - deploy
+
+variables:
+  MAVEN_CLI_OPTS: "-s .maven/settings.xml --batch-mode --errors --fail-at-end"
+  DOCKER_DRIVER: overlay2
+
+cache:
+  paths:
+    - .m2/repository
+
+# 1️⃣ BUILD STAGE: Compile the Java project
+build:
+  stage: build
+  image: maven:3.8.8-eclipse-temurin-17
+  script:
+    - echo "Building the Java application..."
+    - mvn $MAVEN_CLI_OPTS clean compile
+  artifacts:
+    paths:
+      - target/*.jar
+    expire_in: 1 hour
+
+# 2️⃣ TEST STAGE: Run unit tests
+test:
+  stage: test
+  image: maven:3.8.8-eclipse-temurin-17
+  script:
+    - echo "Running tests..."
+    - mvn $MAVEN_CLI_OPTS test
+  allow_failure: false
+
+# 3️⃣ PACKAGE STAGE: Build the JAR
+package:
+  stage: package
+  image: maven:3.8.8-eclipse-temurin-17
+  script:
+    - echo "Packaging the JAR..."
+    - mvn $MAVEN_CLI_OPTS package
+  artifacts:
+    paths:
+      - target/*.jar
+
+# 4️⃣ DOCKERIZE STAGE: Build Docker image
+dockerize:
+  stage: dockerize
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  script:
+    - echo "Logging into GitLab Container Registry..."
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - echo "Building Docker image..."
+    - docker build -t $IMAGE_TAG .
+    - echo "Pushing Docker image..."
+    - docker push $IMAGE_TAG
+  only:
+    - main
+
+# 5️⃣ DEPLOY STAGE (Optional): Deploy to server (e.g., Kubernetes, ECS)
+deploy:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "Deploying to production..."
+    # Add deployment steps here (kubectl, helm, etc.)
+  only:
+    - tags
